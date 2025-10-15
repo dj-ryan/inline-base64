@@ -1,0 +1,11 @@
+{
+  "id": "obsidian-inline-base64",
+  "name": "Inline Images as Base64",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "On paste, converts images to Base64 data URLs and inserts inline Markdown.",
+  "author": "You",
+  "authorUrl": "https://example.com",
+  "isDesktopOnly": false,
+  "main": "main.js"
+}

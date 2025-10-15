@@ -1,0 +1,13 @@
+{
+  "name": "obsidian-inline-base64",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5",
+    "obsidian": "^1.5.0"
+  }
+}
