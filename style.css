@@ -1,0 +1,22 @@
+.cm-inline-base64-hidden {
+  position: relative;
+  color: transparent;
+  caret-color: var(--text-normal);
+  transition: color 0.15s ease;
+}
+
+.cm-inline-base64-hidden::after {
+  content: attr(data-inline-base64-preview);
+  color: var(--text-normal);
+  pointer-events: none;
+}
+
+.cm-inline-base64-hidden:hover,
+.cm-inline-base64-hidden.cm-inline-base64-reveal {
+  color: inherit;
+}
+
+.cm-inline-base64-hidden:hover::after,
+.cm-inline-base64-hidden.cm-inline-base64-reveal::after {
+  content: "";
+}
