@@ -7,6 +7,14 @@ import {
   PluginSettingTab,
   Setting,
 } from "obsidian";
+import { RangeSetBuilder } from "@codemirror/state";
+import {
+  Decoration,
+  DecorationSet,
+  EditorView,
+  ViewPlugin,
+  ViewUpdate,
+} from "@codemirror/view";
 
 
 // ---------------- Settings ----------------
@@ -41,6 +49,8 @@ export default class InlineB64Plugin extends Plugin {
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new InlineB64SettingTab(this.app, this));
+
+    this.registerEditorExtension(inlineBase64PreviewExtension);
 
     // Handle paste
     this.registerEvent(
@@ -433,4 +443,109 @@ async function reencodeImageToJPEG(file: File, quality: number): Promise<Blob> {
   } finally {
     bitmap.close?.();
   }
+}
+
+// ---------------- Editor preview overlay ----------------
+
+const base64ImageRegex =
+  /!\[([^\]]*)\]\(\s*(data:(?:image|application)\/[A-Za-z0-9.+-]+;base64,)([^)]+?)\s*\)/g;
+
+const inlineBase64PreviewExtension = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+
+    constructor(view: EditorView) {
+      this.decorations = buildInlineBase64Decorations(view);
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged || update.selectionSet) {
+        this.decorations = buildInlineBase64Decorations(update.view);
+      }
+    }
+  },
+  {
+    decorations: (v) => v.decorations,
+  }
+);
+
+function buildInlineBase64Decorations(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  const selections = view.state.selection.ranges;
+
+  for (const { from, to } of view.visibleRanges) {
+    const slice = view.state.doc.sliceString(from, to);
+    base64ImageRegex.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = base64ImageRegex.exec(slice))) {
+      const matchFrom = from + match.index;
+      const matchTo = matchFrom + match[0].length;
+      const dataPrefix = match[2] ?? "";
+      if (!dataPrefix.toLowerCase().startsWith("data:image/")) {
+        continue;
+      }
+
+      const alt = match[1] ?? "";
+      const base64Body = (match[3] ?? "").trim();
+      const preview = buildInlineBase64Preview(alt, dataPrefix, base64Body);
+      const shouldReveal = selections.some((sel) =>
+        selectionIntersects(sel.from, sel.to, matchFrom, matchTo)
+      );
+      builder.add(
+        matchFrom,
+        matchTo,
+        createInlineBase64Decoration(preview, shouldReveal)
+      );
+    }
+  }
+
+  return builder.finish();
+}
+
+function createInlineBase64Decoration(
+  preview: string,
+  reveal: boolean
+): Decoration {
+  return Decoration.mark({
+    class: reveal
+      ? "cm-inline-base64-hidden cm-inline-base64-reveal"
+      : "cm-inline-base64-hidden",
+    attributes: {
+      "data-inline-base64-preview": preview,
+    },
+  });
+}
+
+function buildInlineBase64Preview(
+  alt: string,
+  prefix: string,
+  base64: string
+): string {
+  const trimmedAlt = alt.trim();
+  const trimmedBase64 = base64.trim();
+  const showBase64 = createBase64Preview(trimmedBase64);
+  return `![${trimmedAlt}](${prefix}${showBase64})`;
+}
+
+function createBase64Preview(base64: string): string {
+  if (base64.length <= 24) {
+    return base64;
+  }
+  const head = base64.slice(0, 16);
+  const tail = base64.slice(-12);
+  return `${head}[…]${tail}`;
+}
+
+function selectionIntersects(
+  selFrom: number,
+  selTo: number,
+  rangeFrom: number,
+  rangeTo: number
+): boolean {
+  const from = Math.min(selFrom, selTo);
+  const to = Math.max(selFrom, selTo);
+  if (from === to) {
+    return from >= rangeFrom && from <= rangeTo;
+  }
+  return from < rangeTo && to > rangeFrom;
 }
