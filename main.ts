@@ -49,8 +49,7 @@ export default class InlineB64Plugin extends Plugin {
         async (evt: ClipboardEvent, editor: Editor, view: MarkdownView) => {
           if (!this.settings.enableForPaste) return;
           try {
-            const handled = await this.tryHandleClipboardEvent(evt, editor);
-            if (handled) evt.preventDefault();
+            await this.tryHandleClipboardEvent(evt, editor);
           } catch (e) {
             console.error(e);
             new Notice("Inline Base64: paste failed (see console).");
@@ -66,8 +65,7 @@ export default class InlineB64Plugin extends Plugin {
         async (evt: DragEvent, editor: Editor, view: MarkdownView) => {
           if (!this.settings.enableForDrop) return;
           try {
-            const handled = await this.tryHandleDropEvent(evt, editor);
-            if (handled) evt.preventDefault();
+            await this.tryHandleDropEvent(evt, editor);
           } catch (e) {
             console.error(e);
             new Notice("Inline Base64: drop failed (see console).");
@@ -93,6 +91,7 @@ export default class InlineB64Plugin extends Plugin {
       f.type.startsWith("image/")
     );
     if (files.length > 0) {
+      this.swallowEvent(evt);
       const inserts = await this.convertFilesToDataUrls(files);
       if (inserts.length === 0) return false;
       this.insertMarkdownImages(editor, inserts);
@@ -103,6 +102,7 @@ export default class InlineB64Plugin extends Plugin {
     if (this.settings.convertRemoteImageURLs) {
       const text = cd.getData("text/plain")?.trim();
       if (text && isLikelyImageURL(text)) {
+        this.swallowEvent(evt);
         const abort = new AbortController();
         const to = setTimeout(() => abort.abort(), this.settings.timeoutMs);
         try {
@@ -136,10 +136,17 @@ export default class InlineB64Plugin extends Plugin {
       f.type.startsWith("image/")
     );
     if (files.length === 0) return false;
+    this.swallowEvent(evt);
     const inserts = await this.convertFilesToDataUrls(files);
     if (inserts.length === 0) return false;
     this.insertMarkdownImages(editor, inserts);
     return true;
+  }
+
+  private swallowEvent(evt: Event) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    (evt as ClipboardEvent | DragEvent).stopImmediatePropagation?.();
   }
 
   private async convertFilesToDataUrls(
